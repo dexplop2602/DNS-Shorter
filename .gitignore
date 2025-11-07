@@ -1,1 +1,10 @@
-.vagrant/
+# Entorno virtual de Python
+/venv
+/.vagrant/
+
+# Archivos de caché de Python
+__pycache__/
+*.pyc
+
+# Archivo de variables de entorno (¡nunca subir!)
+.env

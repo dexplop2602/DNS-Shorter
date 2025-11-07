@@ -1,8 +1,13 @@
 #!/bin/bash
 
-sudo apt-get update -y
-sudo apt-get install -y python3-pip
+apt-get update -y
+
+apt-get install -y python3-pip python3.10-venv
 
 cd /vagrant
 
-pip3 install -r requirements.txt
+python3 -m venv venv
+
+source venv/bin/activate
+pip install -r requirements.txt
+
