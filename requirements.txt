@@ -2,6 +2,6 @@ fastapi
 uvicorn[standard]
 python-dotenv
 dnspython
-ionoscloud-dns
+python-multipart
+Jinja2
 requests
-rich

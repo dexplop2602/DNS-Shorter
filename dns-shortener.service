@@ -1,13 +1,14 @@
 [Unit]
 Description=DNS URL Shortener FastAPI Service
-After=network.target
-
+After=network-online.target
+Wants=network-online.target
 [Service]
 User=vagrant
 Group=vagrant
 WorkingDirectory=/vagrant
+ExecStartPre=/bin/sleep 5
 ExecStart=/vagrant/venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000
 Restart=always
-
+RestartSec=5
 [Install]
 WantedBy=multi-user.target

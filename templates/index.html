@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acortador de URL con DNS</title>
+    <style>
+        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
+        input[type="url"] { width: 100%; padding: 8px; box-sizing: border-box; }
+        input[type="submit"] { padding: 10px 20px; margin-top: 10px; }
+        .message { margin-top: 20px; padding: 10px; border-radius: 5px; background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Acortador de URL con DNS</h1>
+    <form action="/shorten" method="post">
+        <label for="url">Introduce la URL a acortar:</label>
+        <br><br>
+        <input type="url" id="url" name="url" required>
+        <br>
+        <input type="submit" value="Acortar">
+    </form>
+    
+    {% if message %}
+    <div class="message">
+        <p>{{ message | safe }}</p>
+    </div>
+    {% endif %}
+</body>
+</html>
