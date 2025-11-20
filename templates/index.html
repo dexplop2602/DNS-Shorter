@@ -3,28 +3,255 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acortador de URL con DNS</title>
+    <title>IONOS URL Shortener</title>
     <style>
-        body { font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; border: 1px solid #ccc; border-radius: 8px; }
-        input[type="url"] { width: 100%; padding: 8px; box-sizing: border-box; }
-        input[type="submit"] { padding: 10px 20px; margin-top: 10px; }
-        .message { margin-top: 20px; padding: 10px; border-radius: 5px; background-color: #f0f0f0; }
+        :root {
+            --primary: #003d8f; /* Azul IONOS */
+            --primary-hover: #002d6b;
+            --bg: #f4f7fa;
+            --card-bg: #ffffff;
+            --text: #2c3e50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 3rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.8rem;
+            color: var(--primary);
+        }
+
+        p.subtitle {
+            color: #7f8c8d;
+            margin-bottom: 2rem;
+        }
+
+        .input-group {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            padding-right: 50px; /* Espacio para icono si quisieras */
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+
+        input[type="url"]:focus {
+            border-color: var(--primary);
+        }
+
+        button.btn-main {
+            width: 100%;
+            padding: 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+        button.btn-main:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.btn-main:active {
+            transform: scale(0.98);
+        }
+
+        /* Resultado */
+        .result-card {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: #eef2f7;
+            border-radius: 12px;
+            border: 1px solid #dce4ec;
+            display: none; /* Oculto por defecto */
+            animation: fadeIn 0.5s ease;
+        }
+
+        .short-link {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--primary);
+            text-decoration: none;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            margin-top: 10px;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+        }
+        .copy-btn:hover {
+            background: #f0f0f0;
+            border-color: #bbb;
+        }
+
+        .status-text {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        /* Spinner de carga */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 0 auto;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .footer {
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            color: #ccc;
+        }
     </style>
 </head>
 <body>
-    <h1>Acortador de URL con DNS</h1>
-    <form action="/shorten" method="post">
-        <label for="url">Introduce la URL a acortar:</label>
-        <br><br>
-        <input type="url" id="url" name="url" required>
-        <br>
-        <input type="submit" value="Acortar">
-    </form>
-    
-    {% if message %}
-    <div class="message">
-        <p>{{ message | safe }}</p>
+
+    <div class="container">
+        <div class="logo">🔗</div>
+        <h1>Acortador DNS</h1>
+        <p class="subtitle">Convierte URLs largas en enlaces DNS ultrarrápidos.</p>
+
+        <form id="shortenerForm">
+            <div class="input-group">
+                <input type="url" id="urlInput" name="url" placeholder="Pega tu URL larga aquí (https://...)" required autocomplete="off">
+            </div>
+            <button type="submit" class="btn-main" id="submitBtn">
+                <span id="btnText">Acortar URL</span>
+                <div class="loader" id="loader"></div>
+            </button>
+        </form>
+
+        <div class="result-card" id="resultCard">
+            <p style="margin:0 0 10px 0; color:#666; font-size:0.9rem;">Tu enlace listo:</p>
+            <div>
+                <a href="#" target="_blank" class="short-link" id="shortLinkResult"></a>
+            </div>
+            <button class="copy-btn" onclick="copyToClipboard()">
+                📋 Copiar enlace
+            </button>
+            <p class="status-text" id="statusText"></p>
+        </div>
+        
+        <div class="footer">Powered by IONOS API & FastAPI</div>
     </div>
-    {% endif %}
+
+    <script>
+        const form = document.getElementById('shortenerForm');
+        const resultCard = document.getElementById('resultCard');
+        const shortLinkResult = document.getElementById('shortLinkResult');
+        const statusText = document.getElementById('statusText');
+        const btnText = document.getElementById('btnText');
+        const loader = document.getElementById('loader');
+        const submitBtn = document.getElementById('submitBtn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            // UI de carga
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            submitBtn.disabled = true;
+            resultCard.style.display = 'none';
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('/shorten', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // Mostrar resultado
+                shortLinkResult.href = data.short_url;
+                shortLinkResult.textContent = data.short_url;
+                
+                if (data.status === 'exists') {
+                    statusText.textContent = "ℹ️ Esta URL ya estaba registrada.";
+                } else if (data.status === 'pending') {
+                    statusText.textContent = "⏳ En cola de sincronización (ya existe).";
+                } else {
+                    statusText.textContent = "🚀 Nuevo registro creado. Se propagará en breve.";
+                }
+
+                resultCard.style.display = 'block';
+
+            } catch (error) {
+                alert("Ocurrió un error al acortar la URL.");
+                console.error(error);
+            } finally {
+                // Restaurar UI
+                btnText.style.display = 'inline';
+                loader.style.display = 'none';
+                submitBtn.disabled = false;
+            }
+        });
+
+        function copyToClipboard() {
+            const url = shortLinkResult.textContent;
+            navigator.clipboard.writeText(url).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const originalText = btn.innerHTML;
+                btn.innerHTML = "✅ ¡Copiado!";
+                setTimeout(() => btn.innerHTML = originalText, 2000);
+            });
+        }
+    </script>
 </body>
 </html>

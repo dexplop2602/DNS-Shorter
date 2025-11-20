@@ -2,8 +2,9 @@ import os
 import secrets
 import json
 from fastapi import FastAPI, Response, Form, Request
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 import dns.resolver
@@ -12,9 +13,9 @@ import dns.exception
 # --- CONFIGURACIÓN ---
 load_dotenv()
 app = FastAPI(
-    title="Acortador de URLs con IONOS DNS",
-    description="Versión final para desarrollo local (HTTP:8000).",
-    version="FINAL-LOCAL"
+    title="IONOS DNS Shortener Pro",
+    description="Acortador de URLs profesional con backend DNS.",
+    version="FINAL-PRO"
 )
 templates = Jinja2Templates(directory="templates")
 
@@ -40,60 +41,84 @@ def save_json_file(filepath, data):
 async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-@app.post("/shorten", response_class=HTMLResponse)
-async def create_short_link(request: Request, url: str = Form(...)):
+# CORRECCIÓN DEL ERROR: Si alguien intenta ir a /shorten manualmente, lo mandamos al inicio
+@app.get("/shorten")
+async def redirect_shorten_to_root():
+    return RedirectResponse(url="/")
+
+@app.post("/shorten")
+async def create_short_link(url: str = Form(...)):
+    """
+    Ahora este endpoint devuelve JSON para que el frontend sea dinámico y no recargue.
+    """
     pending_urls = load_json_file(PENDING_FILE)
     synced_urls = load_json_file(SYNCED_FILE)
     
-    # 1. Comprobar si ya existe (para no crear duplicados)
-    
-    # Buscar en los ya sincronizados
+    # 1. Comprobar si ya existe
+    # En sincronizados
     for short_code, long_url in synced_urls.items():
         if long_url == url:
-            # CORRECCIÓN: http + puerto 8000 para que funcione el clic en local
-            existing_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
-            message = f"Esta URL ya fue acortada: <a href='{existing_short_url}' target='_blank'>{existing_short_url}</a>"
-            return templates.TemplateResponse("index.html", {"request": request, "message": message})
+            return JSONResponse({
+                "status": "exists",
+                "short_url": f"http://{BASE_DOMAIN}:8000/{short_code}",
+                "original_url": url
+            })
     
-    # Buscar en los pendientes
+    # En pendientes
     for short_code, long_url in pending_urls.items():
         if long_url == url:
-            # CORRECCIÓN: http + puerto 8000
-            existing_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
-            message = f"Esta URL ya está en cola: <a href='{existing_short_url}' target='_blank'>{existing_short_url}</a>"
-            return templates.TemplateResponse("index.html", {"request": request, "message": message})
+            return JSONResponse({
+                "status": "pending",
+                "short_url": f"http://{BASE_DOMAIN}:8000/{short_code}",
+                "original_url": url
+            })
 
     # 2. Crear nuevo
-    short_code = secrets.token_urlsafe(6).lower()
+    short_code = secrets.token_urlsafe(4).lower() # 4 caracteres es más elegante
     pending_urls[short_code] = url
     save_json_file(PENDING_FILE, pending_urls)
     
-    # CORRECCIÓN: http + puerto 8000. Así al hacer clic, irá a tu VM.
-    new_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
+    final_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
     
-    message = f"¡Éxito! Tu enlace es: <a href='{new_short_url}' target='_blank'>{new_short_url}</a><br><small>(Se está creando el registro DNS en segundo plano)</small>"
-    
-    return templates.TemplateResponse("index.html", {"request": request, "message": message})
+    return JSONResponse({
+        "status": "created",
+        "short_url": final_url,
+        "original_url": url
+    })
 
 @app.get("/{short_path:path}")
 async def resolve_and_redirect(short_path: str):
     if short_path == "favicon.ico": return Response(status_code=204)
+    
+    # Protección extra por si acaso
+    if short_path == "shorten": return RedirectResponse(url="/")
+
     if not BASE_DOMAIN: return Response(content="Error: BASE_DOMAIN no está configurado.", status_code=500)
     
     dns_query_name = f"{short_path}.{BASE_DOMAIN}"
+    
     try:
-        # Intentar resolver usando DNS público (lo ideal)
+        # 1. Intentar resolver DNS público
         answers = dns.resolver.resolve(dns_query_name, 'TXT')
         redirect_url_bytes = answers[0].strings[0]
         redirect_url = redirect_url_bytes.decode('utf-8').strip('"')
         return RedirectResponse(url=redirect_url, status_code=307)
     except dns.exception.DNSException:
-        # Fallback: Si el DNS aún no se ha propagado, miramos los archivos locales
-        # Esto permite que la redirección funcione INSTANTÁNEAMENTE en tu ordenador
+        # 2. Fallback local (para que funcione al instante)
         all_urls = {**load_json_file(PENDING_FILE), **load_json_file(SYNCED_FILE)}
         if short_path in all_urls:
             return RedirectResponse(url=all_urls[short_path], status_code=307)
             
-        return Response(content=f"El enlace corto '{short_path}' no fue encontrado o el DNS aún no se ha propagado.", status_code=404)
+        # Página de error 404 bonita
+        return HTMLResponse(content=f"""
+        <html>
+            <head><title>Enlace no encontrado</title></head>
+            <body style="font-family: sans-serif; text-align: center; padding-top: 50px; color: #333;">
+                <h1>⚠️ Enlace no encontrado</h1>
+                <p>El código <strong>{short_path}</strong> no existe o el DNS aún no se ha propagado.</p>
+                <a href="/">Volver al inicio</a>
+            </body>
+        </html>
+        """, status_code=404)
     except Exception:
         return Response(content="Error interno del servidor.", status_code=500)
