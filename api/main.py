@@ -13,8 +13,8 @@ import dns.exception
 load_dotenv()
 app = FastAPI(
     title="Acortador de URLs con IONOS DNS",
-    description="Versión final que muestra la URL pública del dominio.",
-    version="FINAL"
+    description="Versión final para desarrollo local (HTTP:8000).",
+    version="FINAL-LOCAL"
 )
 templates = Jinja2Templates(directory="templates")
 
@@ -45,20 +45,21 @@ async def create_short_link(request: Request, url: str = Form(...)):
     pending_urls = load_json_file(PENDING_FILE)
     synced_urls = load_json_file(SYNCED_FILE)
     
-    # 1. Comprobar si ya existe
-    # En sincronizados
+    # 1. Comprobar si ya existe (para no crear duplicados)
+    
+    # Buscar en los ya sincronizados
     for short_code, long_url in synced_urls.items():
         if long_url == url:
-            # CAMBIO AQUÍ: Usamos BASE_DOMAIN en lugar de request.url.netloc
-            existing_short_url = f"http://{BASE_DOMAIN}/{short_code}"
+            # CORRECCIÓN: http + puerto 8000 para que funcione el clic en local
+            existing_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
             message = f"Esta URL ya fue acortada: <a href='{existing_short_url}' target='_blank'>{existing_short_url}</a>"
             return templates.TemplateResponse("index.html", {"request": request, "message": message})
     
-    # En pendientes
+    # Buscar en los pendientes
     for short_code, long_url in pending_urls.items():
         if long_url == url:
-            # CAMBIO AQUÍ
-            existing_short_url = f"http://{BASE_DOMAIN}/{short_code}"
+            # CORRECCIÓN: http + puerto 8000
+            existing_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
             message = f"Esta URL ya está en cola: <a href='{existing_short_url}' target='_blank'>{existing_short_url}</a>"
             return templates.TemplateResponse("index.html", {"request": request, "message": message})
 
@@ -67,8 +68,8 @@ async def create_short_link(request: Request, url: str = Form(...)):
     pending_urls[short_code] = url
     save_json_file(PENDING_FILE, pending_urls)
     
-    # CAMBIO AQUÍ: Construimos la URL final usando tu dominio
-    new_short_url = f"http://{BASE_DOMAIN}/{short_code}"
+    # CORRECCIÓN: http + puerto 8000. Así al hacer clic, irá a tu VM.
+    new_short_url = f"http://{BASE_DOMAIN}:8000/{short_code}"
     
     message = f"¡Éxito! Tu enlace es: <a href='{new_short_url}' target='_blank'>{new_short_url}</a><br><small>(Se está creando el registro DNS en segundo plano)</small>"
     
@@ -81,14 +82,14 @@ async def resolve_and_redirect(short_path: str):
     
     dns_query_name = f"{short_path}.{BASE_DOMAIN}"
     try:
-        # Consultar el DNS público para obtener el destino
+        # Intentar resolver usando DNS público (lo ideal)
         answers = dns.resolver.resolve(dns_query_name, 'TXT')
         redirect_url_bytes = answers[0].strings[0]
         redirect_url = redirect_url_bytes.decode('utf-8').strip('"')
         return RedirectResponse(url=redirect_url, status_code=307)
     except dns.exception.DNSException:
-        # Si no está en el DNS público (aún no se propagó), miramos nuestros archivos locales
-        # Esto permite que la redirección funcione inmediatamente en local
+        # Fallback: Si el DNS aún no se ha propagado, miramos los archivos locales
+        # Esto permite que la redirección funcione INSTANTÁNEAMENTE en tu ordenador
         all_urls = {**load_json_file(PENDING_FILE), **load_json_file(SYNCED_FILE)}
         if short_path in all_urls:
             return RedirectResponse(url=all_urls[short_path], status_code=307)
