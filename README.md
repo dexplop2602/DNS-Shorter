@@ -1,182 +1,133 @@
-############################################################################
-#                                                                          #
-#                      ACORTADOR DE URLS BASADO EN DNS                     #
-#                                                                          #
-#          Un servicio minimalista y potente que usa el Sistema de         #
-#              Nombres de Dominio como su base de datos.                   #
-#                                                                          #
-############################################################################
+Here is a professional, comprehensive, and visually appealing `README.md` written in English. It includes the setup instructions, the explanation of the architecture (memory), and the specific configuration steps for the user.
 
+You can simply create a file named `README.md` in your project folder and paste this content.
 
-============================================================================
-## 1. INTRODUCCIÓN Y CONCEPTO
-============================================================================
+***
 
-Bienvenido a este proyecto de acortador de URLs. A diferencia de los servicios tradicionales que dependen de bases de datos como MySQL o MongoDB para almacenar las correspondencias entre enlaces cortos y largos, este proyecto adopta un enfoque innovador y elegante: utiliza el propio Sistema de Nombres de Dominio (DNS) como una base de datos de tipo clave-valor.
+# 🌐 IONOS DNS URL Shortener
 
-El servicio está construido sobre un stack tecnológico moderno y eficiente:
-- Backend: FastAPI, un framework de Python de alto rendimiento.
-- Entorno de Desarrollo: Vagrant y VirtualBox, para crear un entorno de servidor aislado, consistente y reproducible con un solo comando.
-- Lógica de Redirección: La librería dnspython para realizar las consultas DNS en tiempo real.
+![Python](https://img.shields.io/badge/Python-3.10-blue?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.95+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Vagrant](https://img.shields.io/badge/Vagrant-Managed-1563FF?style=for-the-badge&logo=vagrant&logoColor=white)
+![IONOS](https://img.shields.io/badge/IONOS-DNS%20API-003D8F?style=for-the-badge)
 
-El resultado es un sistema ligero, escalable y fascinantemente simple.
+A robust, asynchronous URL shortener that leverages the **IONOS Cloud DNS API** to store redirection data in public **TXT records**. This project is designed to run within a virtualized environment using Vagrant, ensuring a consistent and reproducible infrastructure.
 
+---
 
-============================================================================
-## 2. ¿CÓMO FUNCIONA EXACTAMENTE?
-============================================================================
+## 📖 Project Architecture & Memory
 
-La magia de este sistema reside en el uso de los registros DNS de tipo TXT. Un registro TXT permite asociar un texto arbitrario a un nombre de dominio. Nosotros aprovechamos esta característica para almacenar la URL de destino.
+This project differs from traditional database-driven shorteners by using the Domain Name System (DNS) as a global, distributed database. It implements an **asynchronous architecture** to ensure high performance and fault tolerance.
 
-El flujo completo es el siguiente:
+### How it Works
 
-1. CREACIÓN DE UN ENLACE CORTO:
-   - El administrador del servicio accede al panel de control de su proveedor de DNS (como IONOS).
-   - Para crear el enlace corto "/yt", crea un nuevo registro TXT para el subdominio "yt.su-dominio.com".
-   - En el campo "Valor" de este registro, introduce la URL completa de destino, por ejemplo, "https://www.youtube.com".
+1.  **Frontend & API (FastAPI):**
+    *   The user submits a long URL via the web interface.
+    *   The system generates a secure, random short code.
+    *   The record is immediately saved to a local inventory (`pending_records.json`).
+    *   **Instant Feedback:** The user receives the short URL immediately, without waiting for the external API call to complete.
 
-2. PETICIÓN DEL USUARIO FINAL:
-   - Un usuario abre en su navegador la URL: http://localhost:8000/yt
+2.  **Background Synchronization (Cron & Python):**
+    *   A dedicated script (`sync_dns.py`) runs automatically every minute via a system Cron job.
+    *   It reads the pending records and authenticates with the **IONOS DNS API** using a secure `X-API-Key`.
+    *   It constructs the specific payload required by IONOS (handling FQDN and TXT record formatting).
+    *   Upon success, records are moved to `synced_records.json`.
 
-3. PROCESAMIENTO EN EL BACKEND (FastAPI):
-   - La aplicación FastAPI recibe la petición y extrae la ruta corta ("yt").
-   - Concatena la ruta corta con el dominio base (configurado en el archivo .env) para construir el nombre de dominio completo a consultar: "yt.su-dominio.com".
-   - Utiliza la librería `dnspython` para lanzar una consulta DNS al mundo, preguntando específicamente por el registro TXT asociado a "yt.su-dominio.com".
+3.  **Resolution & Redirection:**
+    *   When a short link is accessed, the system queries the global DNS resolvers for the TXT record associated with that subdomain.
+    *   If the DNS propagation hasn't finished yet, it falls back to the local inventory to ensure the link works instantly for the creator.
 
-4. RESPUESTA Y REDIRECCIÓN:
-   - Si los servidores DNS responden con el registro TXT, la aplicación extrae la URL de destino ("https://www.youtube.com") de su valor.
-   - Inmediatamente, la API envía al navegador del usuario una respuesta de redirección HTTP (código 307 - Redirección Temporal), indicándole que la página que busca se encuentra en "https://www.youtube.com".
-   - Si el subdominio no existe o no tiene un registro TXT, la API devuelve un error 404 (No Encontrado).
+---
 
+## 🚀 Getting Started
 
-============================================================================
-## 3. ESTRUCTURA DEL PROYECTO
-============================================================================
+Follow these instructions to get the project up and running on your local machine.
 
-El repositorio está organizado de la siguiente manera para mantener la claridad y la separación de responsabilidades:
+### Prerequisites
 
-.
-├── api/
-│   └── main.py       # El corazón de la aplicación. Contiene toda la lógica de FastAPI.
-├── .env              # Fichero de configuración local para variables de entorno. ¡NUNCA SUBIR A GIT!
-├── .env.example      # Plantilla de ejemplo para el fichero .env.
-├── .gitignore        # Define qué ficheros y carpetas debe ignorar Git (como .env o la carpeta venv).
-├── bootstrap.sh      # Script de aprovisionamiento. Se ejecuta al crear la máquina virtual para instalar todo lo necesario.
-├── README            # Este mismo archivo de documentación.
-├── requirements.txt  # Lista de todas las dependencias de Python que necesita el proyecto.
-└── Vagrantfile       # El "plano" de nuestra máquina virtual. Define el sistema operativo, la red y qué script de aprovisionamiento usar.
+*   **Vagrant** (installed)
+*   **VirtualBox** (installed)
+*   An **IONOS** account with access to a domain and the "Hosting" API (Developer API).
 
+### 🛠️ Configuration (Important)
 
-============================================================================
-## 4. REQUISITOS PREVIOS
-============================================================================
+Since `.env` files contain sensitive credentials, they are ignored by Git. **You must create this file manually.**
 
-Antes de comenzar, asegúrate de tener el siguiente software instalado y funcionando en tu ordenador:
+1.  Create a file named `.env` in the root directory of the project.
+2.  Copy the following content and fill in your real data:
 
-- Vagrant: Una herramienta para construir y gestionar entornos de desarrollo virtualizados.
-  > Descarga: https://www.vagrantup.com/downloads
+```ini
+# .env configuration file
 
-- VirtualBox: El "proveedor" de virtualización que usará Vagrant para crear la máquina virtual.
-  > Descarga: https://www.virtualbox.org/wiki/Downloads
+# Your registered domain at IONOS (e.g., example.com)
+BASE_DOMAIN=your-domain.com
 
-- Un nombre de dominio: Necesitarás acceso al panel de configuración DNS de un dominio que poseas para poder crear los registros TXT.
+# Your IONOS Developer API Public Prefix
+# Found in the IONOS Developer Portal -> API Key
+IONOS_PREFIX=your_public_prefix_here
 
+# Your IONOS Developer API Secret
+# This is only shown once when creating the key.
+IONOS_SECRET=your_secret_key_here
+```
 
-============================================================================
-## 5. GUÍA DE INSTALACIÓN Y PUESTA EN MARCHA PASO A PASO
-============================================================================
+> **⚠️ Note:** Ensure there are no spaces around the `=` sign and no quotes (`""`) around the values unless they contain special characters.
 
-Sigue estas instrucciones detalladas para levantar el servicio.
+### 📦 Installation & Deployment
 
-### PASO 1: OBTENER EL CÓDIGO FUENTE
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repo-url>
+    cd <your-repo-folder>
+    ```
 
-Clona este repositorio en tu máquina local usando Git.
+2.  **Start the Environment:**
+    Run the following command to provision the Virtual Machine. This script will automatically install Python, system dependencies, configure the Firewall, setup SSL certificates, and schedule the cron jobs.
+    ```bash
+    vagrant up
+    ```
+    * During the first boot, you might be asked to select your **Network Interface** (Wi-Fi or Ethernet) for the Bridged Network adapter. Select the one that provides Internet access.
 
-$ git clone <URL-del-repositorio>
-$ cd <nombre-del-proyecto>
+3.  **Access the Application:**
+    Once the process finishes, open your browser and go to:
+    ```
+    http://localhost:8000
+    ```
 
-### PASO 2: CONFIGURAR TU DOMINIO BASE
+---
 
-El servicio necesita saber cuál es tu dominio para poder construir las consultas DNS. Esta configuración se gestiona a través de un archivo de entorno para no exponerla en el código.
+## 📂 Project Structure
 
-# 1. Crea tu archivo de configuración personal a partir del ejemplo.
-$ cp .env.example .env
+*   **`Vagrantfile`**: Defines the Infrastructure as Code (IaC). Configures Ubuntu 22.04, Bridged Networking, and port forwarding.
+*   **`bootstrap.sh`**: System provisioning script. Handles package installation (`ca-certificates`, `ntpdate`), virtual environment creation, and Systemd service registration.
+*   **`api/main.py`**: The FastAPI application. Handles the web UI and the redirection logic.
+*   **`sync_dns.py`**: The backend worker. Handles the complex communication with the IONOS API (Authentication, Payload formatting, Error handling).
+*   **`requirements.txt`**: Python dependencies.
 
-# 2. Abre el nuevo archivo .env con un editor de texto y modifica la variable.
-#    Reemplaza "tu-dominio.com" por tu dominio real.
-BASE_DOMAIN=davidexposito.es
+---
 
-### PASO 3: CREAR TU PRIMER ENLACE CORTO EN EL DNS
+## 🐛 Troubleshooting
 
-Ahora, vamos a la parte más interesante: crear el "registro en la base de datos". Accede al panel de administración de tu dominio (ej. IONOS).
+**The link shows "Site can't be reached" (DNS_PROBE_POSSIBLE):**
+*   This is expected if you try to access your domain (e.g., `davidexposito.es`) from your host machine without a public server IP.
+*   **Solution:** To test redirections locally, edit your host machine's `/etc/hosts` (Linux/Mac) or `hosts` file (Windows) and map your domain to the VM's IP or use `http://localhost:8000/shortcode`.
 
-- Ve a la sección de gestión de DNS y elige "Añadir registro".
-- Rellena los campos de la siguiente manera:
-    - Tipo: TXT
-    - Nombre de host: go  (Esta será la palabra que uses en la URL, ej. /go)
-    - Valor: https://www.github.com (La URL completa a la que quieres redirigir)
-    - TTL (Time To Live): 1 minuto (Usa el valor más bajo posible. Esto hará que futuros cambios en tus enlaces se propaguen más rápido por internet).
-- Guarda el registro. Ten en cuenta que los cambios de DNS pueden tardar unos minutos en ser visibles globalmente.
+**Logs & Debugging:**
+*   To check the status of the background synchronization, access the VM and check the cron log:
+    ```bash
+    vagrant ssh
+    cat /vagrant/cron.log
+    ```
+*   To check the web server status:
+    ```bash
+    sudo systemctl status dns-shortener.service
+    ```
 
-### PASO 4: CONSTRUIR Y PROVISIONAR EL ENTORNO DE DESARROLLO
+---
 
-Este paso es casi mágico. Vagrant leerá el `Vagrantfile` y construirá una máquina virtual Ubuntu completa, ejecutará `bootstrap.sh` para instalar Python, pip, crear un entorno virtual e instalar todas las dependencias de `requirements.txt`.
+## 📜 License
 
-# Desde la terminal de tu ordenador, en la carpeta del proyecto, ejecuta:
-$ vagrant up
+This project is open-source and available under the [MIT License](LICENSE).
 
-Verás mucho texto en la pantalla mientras Vagrant trabaja. Ten paciencia, la primera vez puede tardar varios minutos.
-
-### PASO 5: EJECUTAR LA APLICACIÓN
-
-Una vez que `vagrant up` termine, nuestro servidor está listo. Ahora solo necesitamos acceder a él y encender la API.
-
-# 1. Conéctate a la máquina virtual recién creada mediante SSH.
-$ vagrant ssh
-
-# 2. Una vez dentro de la máquina virtual, navega al directorio del proyecto.
-#    Este directorio está sincronizado con la carpeta de tu ordenador.
-$ cd /vagrant
-
-# 3. Activa el entorno virtual de Python donde están instaladas nuestras librerías.
-$ source venv/bin/activate
-#    (Verás que tu prompt de la terminal cambia para indicar que el entorno está activo).
-
-# 4. Lanza el servidor web Uvicorn que ejecutará nuestra aplicación FastAPI.
-$ uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
-- --host 0.0.0.0: Hace que el servidor sea accesible desde fuera de la máquina virtual (es decir, desde el navegador de tu ordenador).
-- --port 8000: Especifica el puerto en el que escuchará el servidor.
-- --reload: Un modo de desarrollo muy útil que reinicia el servidor automáticamente cada vez que guardas un cambio en el código Python.
-
-============================================================================
-## 6. ¡A PROBAR!
-============================================================================
-
-Si todo ha ido bien, el servidor está ahora mismo corriendo y esperando peticiones.
-
-Abre tu navegador web preferido y visita la siguiente dirección:
-
-http://localhost:8000/go
-
-Si configuraste el registro DNS del PASO 3 correctamente, deberías ser redirigido instantáneamente a https://www.github.com.
-
-¡Felicidades, tu acortador de URLs basado en DNS está funcionando!
-
-============================================================================
-## 7. GESTIÓN DEL ENTORNO VAGRANT
-============================================================================
-
-Para gestionar tu máquina virtual, usa los siguientes comandos desde la terminal de tu ordenador (en la carpeta del proyecto):
-
-- Para apagar la máquina virtual de forma segura:
-  $ vagrant halt
-
-- Para reanudar una máquina apagada:
-  $ vagrant up
-
-- Para suspender el estado actual de la máquina (como hibernar):
-  $ vagrant suspend
-
-- Para eliminar COMPLETAMENTE la máquina virtual (¡cuidado, esta acción no se puede deshacer!):
-  $ vagrant destroy -f
+---
+*Developed for System Administration Practice - 2025*
