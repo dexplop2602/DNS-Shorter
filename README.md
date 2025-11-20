@@ -1,8 +1,3 @@
-Here is a professional, comprehensive, and visually appealing `README.md` written in English. It includes the setup instructions, the explanation of the architecture (memory), and the specific configuration steps for the user.
-
-You can simply create a file named `README.md` in your project folder and paste this content.
-
-***
 
 # 🌐 IONOS DNS URL Shortener
 
